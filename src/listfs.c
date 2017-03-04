@@ -178,19 +178,35 @@ static int listfs_getxtimes(const char* path, struct timespec* bkuptime, struct 
 }
 #endif
 
+#ifndef __FreeBSD__
 static int listfs_listxattr(const char* path, char* attr, size_t size) {
+#ifdef __APPLE__
 	int ret = listxattr(path, attr, size, 0);
+#else
+	int ret = listxattr(path, attr, size);
+#endif
 	if(ret < 0)
 		return -errno;
 	return 0;
 }
 
+#ifdef __APPLE__
 static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size, uint32_t offset) {
 	int ret = getxattr(path, attr, value, size, offset, 0);
 	if(ret < 0)
 		return -errno;
 	return 0;
 }
+#else
+static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size) {
+	int ret = getxattr(path, attr, value, size, offset, 0);
+	int ret = getxattr(path, attr, value, size);
+	if(ret < 0)
+		return -errno;
+	return 0;
+}
+#endif
+#endif
 
 static struct fuse_operations listfs_ops = {
 	.open        = listfs_open,
@@ -203,8 +219,10 @@ static struct fuse_operations listfs_ops = {
 	.getattr     = listfs_getattr,
 	.readlink    = listfs_readlink,
 	.fgetattr    = listfs_fgetattr,
+#ifndef __FreeBSD__
 	.listxattr   = listfs_listxattr,
 	.getxattr    = listfs_getxattr,
+#endif
 #ifdef __APPLE__
 	.getxtimes   = listfs_getxtimes,
 #else
