@@ -24,4 +24,4 @@ listfs is compatible with most FUSE implementations, and builds on macOS, Linux,
 ## Use
     listfs <opts> <file> <mountpoint>
 
-Where `<opts>` are any series of arguments to be passed along to FUSE. Use `hfsfuse -h` for a list of switches.
+Where `<opts>` are any series of arguments to be passed along to FUSE. Use `listfs -h` for a list of switches.
