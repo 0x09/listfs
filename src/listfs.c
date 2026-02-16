@@ -129,7 +129,7 @@ static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
 			free(p);
 			continue;
 		}
-		if(filler(buf, p, &st, 0)) {
+		if(filler(buf, ctx->base->links[i].name, &st, 0)) {
 			free(p);
 			ret = -errno;
 			break;
