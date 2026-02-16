@@ -223,7 +223,6 @@ int main(int argc, char* argv[]) {
 	fuse_opt_add_opt_escaped(&opts, fsname);
 	fuse_opt_add_arg(&args, "-o");
 	fuse_opt_add_arg(&args, opts);
-	fuse_opt_add_arg(&args, "-s");
 
 	struct btree root = {"/"};
 	FILE* f = fopen(device, "r");
