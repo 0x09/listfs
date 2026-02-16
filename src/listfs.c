@@ -99,7 +99,15 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	}
 
 	struct dir_context* d = malloc(sizeof(*d));
-	d->prefix = strdup(path);
+	if(!d) {
+		ret = -ENOMEM;
+		goto end;
+	}
+	if(!(d->prefix = strdup(path))) {
+		ret = -ENOMEM;
+		free(d);
+		goto end;
+	}
 	d->plen = strlen(d->prefix);
 	d->base = base;
 	info->fh = (uint64_t)d;
