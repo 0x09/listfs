@@ -25,10 +25,6 @@ struct btree {
 	struct btree* links;
 };
 
-struct dir_context {
-	struct btree* base;
-};
-
 static int listfs_open(const char* path, struct fuse_file_info* info) {
 	int fd = open(path, O_RDONLY);
 	if(fd < 0)
@@ -75,10 +71,8 @@ static int listfs_fgetattr(const char* path, struct stat* st, struct fuse_file_i
 static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	int ret = 0;
 	char* p = strdup(path),* freeme = p;
-	if(!p) {
-		ret = -ENOMEM;
-		goto end;
-	}
+	if(!p)
+		return -ENOMEM;
 
 	char* token;
 	struct btree* base = fuse_get_context()->private_data;
@@ -91,35 +85,24 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 			;
 		if(i == base->len) {
 			ret = -ENOENT;
-			goto end;
+			break;
 		}
 		base = base->links + i;
 	}
 
-	struct dir_context* d = malloc(sizeof(*d));
-	if(!d) {
-		ret = -ENOMEM;
-		goto end;
-	}
+	info->fh = (uint64_t)base;
 
-	info->fh = (uint64_t)d;
-end:
 	free(freeme);
 	return ret;
-}
-
-static int listfs_releasedir(const char* path, struct fuse_file_info* info) {
-	free((struct dir_context*)info->fh);
-	return 0;
 }
 
 static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* info) {
 	int ret = 0;
 	filler(buf, ".", NULL, 0);
 	filler(buf, "..", NULL, 0);
-	struct dir_context* ctx = (struct dir_context*)info->fh;
-	for(size_t i = 0; i < ctx->base->len; i++) {
-		if(filler(buf, ctx->base->links[i].name, NULL, 0)) {
+	struct btree* base = (struct btree*)info->fh;
+	for(size_t i = 0; i < base->len; i++) {
+		if(filler(buf, base->links[i].name, NULL, 0)) {
 			ret = -errno;
 			break;
 		}
@@ -181,7 +164,6 @@ static struct fuse_operations listfs_ops = {
 	.read        = listfs_read,
 	.readdir     = listfs_readdir,
 	.release     = listfs_release,
-	.releasedir  = listfs_releasedir,
 	.statfs      = listfs_statfs,
 	.getattr     = listfs_getattr,
 	.readlink    = listfs_readlink,
