@@ -121,7 +121,7 @@ static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
 	for(size_t i = 0; i < ctx->base->len; i++) {
 		struct stat st;
 		size_t namelen = strlen(ctx->base->links[i].name);
-		char* p = malloc(ctx->plen + 1 + namelen);
+		char* p = malloc(ctx->plen + 1 + namelen + 1);
 		memcpy(p, ctx->prefix, ctx->plen);
 		p[ctx->plen] = '/';
 		memcpy(p+ctx->plen+1, ctx->base->links[i].name, namelen+1);
