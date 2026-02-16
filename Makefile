@@ -12,12 +12,8 @@ FUSE_FLAGS = -DFUSE_USE_VERSION=28 -D_FILE_OFFSET_BITS=64
 FUSE_LIB = -lfuse
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-	ifeq ($(shell [ -e /usr/local/lib/libosxfuse.dylib ] && echo 1), 1)
-		FUSE_FLAGS += -I/usr/local/include/osxfuse
-		FUSE_LIB = -losxfuse
-	else ifeq ($(shell [ -e /usr/local/lib/libfuse.dylib ] && echo 1), 1)
-		FUSE_FLAGS += -I/usr/local/include
-	endif
+	FUSE_FLAGS += -I/usr/local/include
+	FUSE_LIB += -L/usr/local/lib
 else ifeq ($(OS), FreeBSD)
 	FUSE_FLAGS += -I/usr/local/include
 	FUSE_LIB += -L/usr/local/lib
