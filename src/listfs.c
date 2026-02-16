@@ -26,8 +26,6 @@ struct btree {
 };
 
 struct dir_context {
-	char* prefix;
-	size_t plen;
 	struct btree* base;
 };
 
@@ -104,15 +102,6 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 		goto end;
 	}
 
-	d->plen = strlen(path);
-	if(!(d->prefix = malloc(d->plen))) {
-		ret = -ENOMEM;
-		free(d);
-		goto end;
-	}
-	memcpy(d->prefix,path,d->plen-1);
-	d->prefix[d->plen-1] = '/';
-	d->base = base;
 	info->fh = (uint64_t)d;
 end:
 	free(freeme);
@@ -120,9 +109,7 @@ end:
 }
 
 static int listfs_releasedir(const char* path, struct fuse_file_info* info) {
-	struct dir_context* d = (struct dir_context*)info->fh;
-	free(d->prefix);
-	free(d);
+	free((struct dir_context*)info->fh);
 	return 0;
 }
 
@@ -132,21 +119,10 @@ static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
 	filler(buf, "..", NULL, 0);
 	struct dir_context* ctx = (struct dir_context*)info->fh;
 	for(size_t i = 0; i < ctx->base->len; i++) {
-		struct stat st;
-		size_t namelen = strlen(ctx->base->links[i].name);
-		char* p = malloc(ctx->plen + namelen + 1);
-		memcpy(p, ctx->prefix, ctx->plen);
-		memcpy(p+ctx->plen, ctx->base->links[i].name, namelen+1);
-		if(stat(p, &st) == ENOENT) {
-			free(p);
-			continue;
-		}
-		if(filler(buf, ctx->base->links[i].name, &st, 0)) {
-			free(p);
+		if(filler(buf, ctx->base->links[i].name, NULL, 0)) {
 			ret = -errno;
 			break;
 		}
-		free(p);
 	}
 	return ret;
 }
