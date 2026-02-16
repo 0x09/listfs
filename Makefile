@@ -31,7 +31,7 @@ all: $(TARGET)
 	$(CC) $(CFLAGS) $(FUSE_FLAGS) $(INCLUDE) -c -o $*.o $^
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(FUSE_LIB) -o $@ $^ -lpthread
+	$(CC) $(CFLAGS) $(FUSE_LIB) -o $@ $^
 
 clean:
 	rm -f $(OBJS) $(TARGET)
