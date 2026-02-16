@@ -103,12 +103,15 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 		ret = -ENOMEM;
 		goto end;
 	}
-	if(!(d->prefix = strdup(path))) {
+
+	d->plen = strlen(path);
+	if(!(d->prefix = malloc(d->plen))) {
 		ret = -ENOMEM;
 		free(d);
 		goto end;
 	}
-	d->plen = strlen(d->prefix);
+	memcpy(d->prefix,path,d->plen-1);
+	d->prefix[d->plen-1] = '/';
 	d->base = base;
 	info->fh = (uint64_t)d;
 end:
@@ -131,10 +134,9 @@ static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
 	for(size_t i = 0; i < ctx->base->len; i++) {
 		struct stat st;
 		size_t namelen = strlen(ctx->base->links[i].name);
-		char* p = malloc(ctx->plen + 1 + namelen + 1);
+		char* p = malloc(ctx->plen + namelen + 1);
 		memcpy(p, ctx->prefix, ctx->plen);
-		p[ctx->plen] = '/';
-		memcpy(p+ctx->plen+1, ctx->base->links[i].name, namelen+1);
+		memcpy(p+ctx->plen, ctx->base->links[i].name, namelen+1);
 		if(stat(p, &st) == ENOENT) {
 			free(p);
 			continue;
