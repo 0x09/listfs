@@ -179,7 +179,6 @@ static int listfs_getxattr(const char* path, const char* attr, char* value, size
 }
 #else
 static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size) {
-	int ret = getxattr(path, attr, value, size, offset, 0);
 	int ret = getxattr(path, attr, value, size);
 	if(ret < 0)
 		return -errno;
