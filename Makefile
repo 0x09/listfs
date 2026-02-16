@@ -13,9 +13,6 @@ OS := $(shell uname)
 ifeq ($(OS), Darwin)
 	FUSE_FLAGS += -I/usr/local/include
 	FUSE_LIB += -L/usr/local/lib
-else ifeq ($(OS), FreeBSD)
-	FUSE_FLAGS += -I/usr/local/include
-	FUSE_LIB += -L/usr/local/lib
 endif
 
 CPPFLAGS := $(FUSE_FLAGS) $(CPPFLAGS)
