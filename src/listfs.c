@@ -109,7 +109,9 @@ end:
 }
 
 static int listfs_releasedir(const char* path, struct fuse_file_info* info) {
-	free((struct dir_context*)info->fh);
+	struct dir_context* d = (struct dir_context*)info->fh;
+	free(d->prefix);
+	free(d);
 	return 0;
 }
 
