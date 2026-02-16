@@ -1,0 +1,7 @@
+*.o
+*.txt
+/listfs
+/Vagrantfile
+/.vagrant
+*.tar.gz
+compile_commands.json
