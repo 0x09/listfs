@@ -245,7 +245,8 @@ int main(int argc, char* argv[]) {
 					goto end;
 				}
 				base->links = tmp;
-				memset(base->links + base->len-1, 0, sizeof(struct btree));
+				base->links[base->len-1].len = 0;
+				base->links[base->len-1].links = NULL;
 				base->links[base->len-1].name = token; // hold onto these since entry won't be freed until exit
 			}
 			base = base->links + i;
