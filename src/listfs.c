@@ -354,9 +354,9 @@ static int listfs_getxattr(const char* path, const char* attr, char* value, size
 	if(!realpath)
 		return -ENOMEM;
 #ifdef __APPLE__
-	int ret = getxattr(path, attr, value, size, 0, 0);
+	int ret = getxattr(realpath, attr, value, size, 0, 0);
 #else
-	int ret = getxattr(path, attr, value, size);
+	int ret = getxattr(realpath, attr, value, size);
 #endif
 	free(realpath);
 	if(ret < 0)
