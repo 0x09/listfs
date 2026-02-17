@@ -209,9 +209,9 @@ static struct fuse_opt listfs_opts[] = {
 };
 
 static int listfs_opt_proc(void* data, const char* arg, int key, struct fuse_args* args) {
-	const char** device = data;
-	if(key == FUSE_OPT_KEY_NONOPT && !*device) {
-		*device = strdup(arg);
+	const char** file = data;
+	if(key == FUSE_OPT_KEY_NONOPT && !*file) {
+		*file = strdup(arg);
 		return 0;
 	}
 	else if(key == 0) {
@@ -226,16 +226,16 @@ static int listfs_opt_proc(void* data, const char* arg, int key, struct fuse_arg
 int main(int argc, char* argv[]) {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
-	const char* device = NULL;
+	const char* file = NULL;
 
-	if(fuse_opt_parse(&args, &device, listfs_opts, listfs_opt_proc) == -1)
+	if(fuse_opt_parse(&args, &file, listfs_opts, listfs_opt_proc) == -1)
 		return 1;
 
-	char* fsname = malloc(strlen("fsname=") + strlen(device) + 1);
+	char* fsname = malloc(strlen("fsname=") + strlen(file) + 1);
 	if(!fsname)
 		goto end;
 	strcpy(fsname, "fsname=");
-	strcat(fsname, device);
+	strcat(fsname, file);
 
 	char* opts = NULL;
 	fuse_opt_add_opt(&opts, "ro");
@@ -245,7 +245,7 @@ int main(int argc, char* argv[]) {
 	fuse_opt_add_arg(&args, opts);
 
 	struct btree root = {"/"};
-	FILE* f = fopen(device, "r");
+	FILE* f = fopen(file, "r");
 	ssize_t len;
 	char* entry = NULL;
 	int ret;
