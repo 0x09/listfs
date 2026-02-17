@@ -159,12 +159,8 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 			continue;
 
 		size_t i;
-		for(i = 0; i < base->len && strcmp(token, base->links[i].name); i++)
+		for(i = 0; strcmp(token, base->links[i].name); i++)
 			;
-		if(i == base->len) {
-			ret = -ENOENT;
-			break;
-		}
 		base = base->links + i;
 	}
 
