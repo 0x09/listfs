@@ -147,7 +147,7 @@ static int listfs_getattr(const char* path, struct stat* st, struct fuse_file_in
 
 static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	int ret = 0;
-	char* p = strdup(path),* freeme = p;
+	char* p = strdup(path),* origp = p;
 	if(!p)
 		return -ENOMEM;
 
@@ -166,7 +166,7 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 
 	info->fh = (uint64_t)base;
 
-	free(freeme);
+	free(origp);
 	return ret;
 }
 
