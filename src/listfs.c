@@ -275,7 +275,6 @@ int main(int argc, char* argv[]) {
 			}
 			base = base->links + i;
 		}
-		entry = NULL;
 	}
 	fclose(f);
 
