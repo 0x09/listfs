@@ -2,7 +2,7 @@
  * listfs - Barebones FUSE driver for presenting a list of existing filesystem objects
  */
 
-#include <fuse/fuse.h>
+#include <fuse3/fuse.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stddef.h>
@@ -19,11 +19,23 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+#if FUSE_DARWIN_ENABLE_EXTENSIONS
+typedef fuse_darwin_fill_dir_t fill_dir_type;
+#else
+typedef fuse_fill_dir_t fill_dir_type;
+#endif
+
 struct btree {
 	char* name;
 	size_t len;
 	struct btree* links;
 };
+
+static void* listfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
+	cfg->use_ino = 1;
+	cfg->nullpath_ok = 1;
+	return fuse_get_context()->private_data;
+}
 
 static int listfs_open(const char* path, struct fuse_file_info* info) {
 	int fd = open(path, O_RDONLY);
@@ -54,19 +66,38 @@ static int listfs_readlink(const char* path, char* buf, size_t size) {
 	return ret;
 }
 
-static int listfs_getattr(const char* path, struct stat* st) {
-	int ret = stat(path, st);
+#if FUSE_DARWIN_ENABLE_EXTENSIONS
+static int listfs_getattr(const char* path, struct fuse_darwin_attr* attrs, struct fuse_file_info* info) {
+	struct stat st;
+	int ret = info ? fstat(info->fh, &st) : stat(path, &st);
 	if(ret < 0)
 		return -errno;
-	return ret;
-}
 
-static int listfs_fgetattr(const char* path, struct stat* st, struct fuse_file_info* info) {
-	int ret = fstat(info->fh, st);
+	attrs->ino = st.st_ino;
+	attrs->mode = st.st_mode;
+	attrs->nlink = st.st_nlink;
+	attrs->uid = st.st_uid;
+	attrs->gid = st.st_gid;
+	attrs->rdev = st.st_rdev;
+	attrs->atimespec.tv_sec = st.st_atime;
+	attrs->mtimespec.tv_sec = st.st_mtime;
+	attrs->ctimespec.tv_sec = st.st_ctime;
+	attrs->btimespec.tv_sec = st.st_birthtime;
+	attrs->size = st.st_size;
+	attrs->blocks = st.st_blocks;
+	attrs->blksize = st.st_blksize;
+	attrs->flags = st.st_flags;
+
+	return ret;
+}
+#else
+static int listfs_getattr(const char* path, struct stat* st, struct fuse_file_info* info) {
+	int ret = info ? fstat(info->fh, st) : stat(path, st);
 	if(ret < 0)
 		return -errno;
 	return ret;
 }
+#endif
 
 static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	int ret = 0;
@@ -96,13 +127,13 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	return ret;
 }
 
-static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* info) {
+static int listfs_readdir(const char* path, void* buf, fill_dir_type filler, off_t offset, struct fuse_file_info* info,  enum fuse_readdir_flags flags) {
 	int ret = 0;
-	filler(buf, ".", NULL, 0);
-	filler(buf, "..", NULL, 0);
+	filler(buf, ".", NULL, 0, 0);
+	filler(buf, "..", NULL, 0, 0);
 	struct btree* base = (struct btree*)info->fh;
 	for(size_t i = 0; i < base->len; i++) {
-		if(filler(buf, base->links[i].name, NULL, 0)) {
+		if(filler(buf, base->links[i].name, NULL, 0, 0)) {
 			ret = -errno;
 			break;
 		}
@@ -110,22 +141,19 @@ static int listfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, o
 	return ret;
 }
 
+#if FUSE_DARWIN_ENABLE_EXTENSIONS
+static int listfs_statfs(const char* path, struct statfs* st) {
+	int ret = statfs(path, st);
+	if(ret < 0)
+		return -errno;
+	return ret;
+}
+#else
 static int listfs_statfs(const char* path, struct statvfs* st) {
 	int ret = statvfs(path, st);
 	if(ret < 0)
 		return -errno;
 	return ret;
-}
-
-#ifdef __APPLE__
-static int listfs_getxtimes(const char* path, struct timespec* bkuptime, struct timespec* crtime) {
-	struct stat st;
-	int ret = stat(path, &st);
-	crtime->tv_sec = st.st_birthtime;
-	crtime->tv_nsec = 0;
-	if(ret < 0)
-		return -errno;
-	return 0;
 }
 #endif
 
@@ -140,7 +168,7 @@ static int listfs_listxattr(const char* path, char* attr, size_t size) {
 	return 0;
 }
 
-#ifdef __APPLE__
+#if FUSE_DARWIN_ENABLE_EXTENSIONS
 static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size, uint32_t offset) {
 	int ret = getxattr(path, attr, value, size, offset, 0);
 	if(ret < 0)
@@ -149,7 +177,11 @@ static int listfs_getxattr(const char* path, const char* attr, char* value, size
 }
 #else
 static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size) {
+#ifdef __APPLE__
+	int ret = getxattr(path, attr, value, size, 0, 0);
+#else
 	int ret = getxattr(path, attr, value, size);
+#endif
 	if(ret < 0)
 		return -errno;
 	return 0;
@@ -165,15 +197,8 @@ static struct fuse_operations listfs_ops = {
 	.statfs      = listfs_statfs,
 	.getattr     = listfs_getattr,
 	.readlink    = listfs_readlink,
-	.fgetattr    = listfs_fgetattr,
 	.listxattr   = listfs_listxattr,
 	.getxattr    = listfs_getxattr,
-#ifdef __APPLE__
-	.getxtimes   = listfs_getxtimes,
-#else
-	.flag_nopath = 1,
-	.flag_nullpath_ok = 1
-#endif
 };
 
 
@@ -214,7 +239,6 @@ int main(int argc, char* argv[]) {
 
 	char* opts = NULL;
 	fuse_opt_add_opt(&opts, "ro");
-	fuse_opt_add_opt(&opts, "use_ino");
 	fuse_opt_add_opt(&opts, "subtype=list");
 	fuse_opt_add_opt_escaped(&opts, fsname);
 	fuse_opt_add_arg(&args, "-o");

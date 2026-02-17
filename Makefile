@@ -7,8 +7,8 @@ CFLAGS := $(CONFIG_CFLAGS) $(CFLAGS)
 export CC
 export CFLAGS
 
-FUSE_FLAGS = -DFUSE_USE_VERSION=28 -D_FILE_OFFSET_BITS=64
-LDLIBS = -lfuse
+FUSE_FLAGS = -DFUSE_USE_VERSION=35 -D_FILE_OFFSET_BITS=64
+LDLIBS = -lfuse3
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
 	FUSE_FLAGS += -I/usr/local/include
