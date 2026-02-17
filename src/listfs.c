@@ -31,6 +31,24 @@ struct btree {
 	struct btree* links;
 };
 
+struct listfs {
+	struct btree* btree;
+	const char* root;
+	size_t root_len;
+};
+
+static char* listfs_realpath(struct listfs* listfs, const char* path) {
+	size_t pathlen = strlen(path);
+	char* realpath = malloc(listfs->root_len + pathlen + 2);
+	if(!realpath)
+		return NULL;
+
+	memcpy(realpath,listfs->root,listfs->root_len);
+	realpath[listfs->root_len] = '/';
+	memcpy(realpath+listfs->root_len,path,pathlen+1);
+	return realpath;
+}
+
 static void* listfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
 	cfg->use_ino = 1;
 	cfg->nullpath_ok = 1;
@@ -38,7 +56,12 @@ static void* listfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
 }
 
 static int listfs_open(const char* path, struct fuse_file_info* info) {
-	int fd = open(path, O_RDONLY);
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
+	int fd = open(realpath, O_RDONLY);
+	free(realpath);
+
 	if(fd < 0)
 		return -errno;
 
@@ -60,7 +83,12 @@ static int listfs_read(const char* path, char* buf, size_t size, off_t offset, s
 }
 
 static int listfs_readlink(const char* path, char* buf, size_t size) {
-	int ret = readlink(path,buf,size);
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
+	int ret = readlink(realpath,buf,size);
+	free(realpath);
+
 	if(ret < 0)
 		return -errno;
 	return ret;
@@ -69,7 +97,16 @@ static int listfs_readlink(const char* path, char* buf, size_t size) {
 #if FUSE_DARWIN_ENABLE_EXTENSIONS
 static int listfs_getattr(const char* path, struct fuse_darwin_attr* attrs, struct fuse_file_info* info) {
 	struct stat st;
-	int ret = info ? fstat(info->fh, &st) : stat(path, &st);
+	int ret;
+	if(info)
+		ret = fstat(info->fh, &st);
+	else {
+		char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+		if(!realpath)
+			return -ENOMEM;
+		ret = stat(realpath, &st);
+		free(realpath);
+	}
 	if(ret < 0)
 		return -errno;
 
@@ -92,7 +129,16 @@ static int listfs_getattr(const char* path, struct fuse_darwin_attr* attrs, stru
 }
 #else
 static int listfs_getattr(const char* path, struct stat* st, struct fuse_file_info* info) {
-	int ret = info ? fstat(info->fh, st) : stat(path, st);
+	int ret;
+	if(info)
+		ret = fstat(info->fh, st);
+	else {
+		char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+		if(!realpath)
+			return -ENOMEM;
+		ret = stat(realpath, st);
+		free(realpath);
+	}
 	if(ret < 0)
 		return -errno;
 	return ret;
@@ -106,7 +152,8 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 		return -ENOMEM;
 
 	char* token;
-	struct btree* base = fuse_get_context()->private_data;
+	struct listfs* listfs = fuse_get_context()->private_data;
+	struct btree* base = listfs->btree;
 	while((token = strsep(&p, "/"))) {
 		if(!*token)
 			continue;
@@ -143,14 +190,24 @@ static int listfs_readdir(const char* path, void* buf, fill_dir_type filler, off
 
 #if FUSE_DARWIN_ENABLE_EXTENSIONS
 static int listfs_statfs(const char* path, struct statfs* st) {
-	int ret = statfs(path, st);
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
+	int ret = statfs(realpath, st);
+	free(realpath);
+
 	if(ret < 0)
 		return -errno;
 	return ret;
 }
 #else
 static int listfs_statfs(const char* path, struct statvfs* st) {
-	int ret = statvfs(path, st);
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
+	int ret = statvfs(realpath, st);
+	free(realpath);
+
 	if(ret < 0)
 		return -errno;
 	return ret;
@@ -158,11 +215,16 @@ static int listfs_statfs(const char* path, struct statvfs* st) {
 #endif
 
 static int listfs_listxattr(const char* path, char* attr, size_t size) {
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
 #ifdef __APPLE__
-	int ret = listxattr(path, attr, size, 0);
+	int ret = listxattr(realpath, attr, size, 0);
 #else
-	int ret = listxattr(path, attr, size);
+	int ret = listxattr(realpath, attr, size);
 #endif
+	free(realpath);
+
 	if(ret < 0)
 		return -errno;
 	return 0;
@@ -170,18 +232,27 @@ static int listfs_listxattr(const char* path, char* attr, size_t size) {
 
 #if FUSE_DARWIN_ENABLE_EXTENSIONS
 static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size, uint32_t offset) {
-	int ret = getxattr(path, attr, value, size, offset, 0);
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
+	int ret = getxattr(realpath, attr, value, size, offset, 0);
+	free(realpath);
+
 	if(ret < 0)
 		return -errno;
 	return 0;
 }
 #else
 static int listfs_getxattr(const char* path, const char* attr, char* value, size_t size) {
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath)
+		return -ENOMEM;
 #ifdef __APPLE__
 	int ret = getxattr(path, attr, value, size, 0, 0);
 #else
 	int ret = getxattr(path, attr, value, size);
 #endif
+	free(realpath);
 	if(ret < 0)
 		return -errno;
 	return 0;
@@ -201,10 +272,15 @@ static struct fuse_operations listfs_ops = {
 	.getxattr    = listfs_getxattr,
 };
 
+struct listfs_config {
+	const char* file;
+	const char* root;
+};
 
 static struct fuse_opt listfs_opts[] = {
 	FUSE_OPT_KEY("-h",0),
 	FUSE_OPT_KEY("--help",0),
+	{"root=%s",offsetof(struct listfs_config,root),0},
 	FUSE_OPT_END
 };
 
@@ -213,13 +289,23 @@ void usage() {
 	exit(1);
 }
 
+void help() {
+	printf("Usage: listfs [options] <list.txt> <mountpoint>\n"
+	"\n"
+	"listfs options:\n"
+	"    -o root=path  Set the root of the filesystem to this path.\n"
+	"\n"
+	);
+}
+
 static int listfs_opt_proc(void* data, const char* arg, int key, struct fuse_args* args) {
-	const char** file = data;
-	if(key == FUSE_OPT_KEY_NONOPT && !*file) {
-		*file = strdup(arg);
+	struct listfs_config* cfg = data;
+	if(key == FUSE_OPT_KEY_NONOPT && !cfg->file) {
+		cfg->file = strdup(arg);
 		return 0;
 	}
 	else if(key == 0) {
+		help();
 		fuse_opt_add_arg(args,"-h");
 		fuse_main(args->argc,args->argv,NULL,NULL);
 		fuse_opt_free_args(args);
@@ -231,25 +317,29 @@ static int listfs_opt_proc(void* data, const char* arg, int key, struct fuse_arg
 int main(int argc, char* argv[]) {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
-	const char* file = NULL;
+	struct listfs_config cfg = {0};
 
 	int ret;
-	if(fuse_opt_parse(&args, &file, listfs_opts, listfs_opt_proc) == -1) {
+	if(fuse_opt_parse(&args, &cfg, listfs_opts, listfs_opt_proc) == -1) {
 		ret = 1;
 		goto end;
 	}
 
-	if(!file) {
+	if(!cfg.file) {
 		usage();
 		ret = 1;
 		goto end;
 	}
 
-	char* fsname = malloc(strlen("fsname=") + strlen(file) + 1);
+	char* rootpath = "";
+	if(cfg.root && !(rootpath = realpath(cfg.root,NULL)))
+		perror(cfg.root);
+
+	char* fsname = malloc(strlen("fsname=") + strlen(cfg.file) + 1);
 	if(!fsname)
 		goto end;
 	strcpy(fsname, "fsname=");
-	strcat(fsname, file);
+	strcat(fsname, cfg.file);
 
 	char* opts = NULL;
 	fuse_opt_add_opt(&opts, "ro");
@@ -283,6 +373,13 @@ int main(int argc, char* argv[]) {
 			continue;
 		}
 		char* basepath = path;
+		if(!strncmp(basepath,listfs.root,listfs.root_len))
+			basepath += listfs.root_len;
+		else {
+			fprintf(stderr,"Warning: %s is outside of root, skipping.\n",entry);
+			continue;
+		}
+
 		char* token;
 		struct btree* base = &root;
 		while((token = strsep(&basepath, "/"))) {
@@ -309,7 +406,7 @@ int main(int argc, char* argv[]) {
 	fclose(f);
 	free(entry);
 
-	ret = fuse_main(args.argc,args.argv,&listfs_ops,&root);
+	ret = fuse_main(args.argc,args.argv,&listfs_ops,&listfs);
 
 end:
 	fuse_opt_free_args(&args);
