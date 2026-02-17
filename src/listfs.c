@@ -171,17 +171,19 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 }
 
 static int listfs_readdir(const char* path, void* buf, fill_dir_type filler, off_t offset, struct fuse_file_info* info,  enum fuse_readdir_flags flags) {
-	int ret = 0;
-	filler(buf, ".", NULL, 0, 0);
-	filler(buf, "..", NULL, 0, 0);
+	if(offset < 1)
+		if(filler(buf, ".", NULL, 1, 0))
+			return 0;
+	if(offset < 2)
+		if(filler(buf, "..", NULL, 2, 0))
+			return 0;
+
 	struct btree* base = (struct btree*)info->fh;
-	for(size_t i = 0; i < base->len; i++) {
-		if(filler(buf, base->links[i].name, NULL, 0, 0)) {
-			ret = -errno;
-			break;
-		}
+	for(size_t i = offset < 2 ? 0 : offset-2; i < base->len; i++) {
+		if(filler(buf, base->links[i].name, NULL, i+3, 0))
+			return 0;
 	}
-	return ret;
+	return 0;
 }
 
 #if FUSE_DARWIN_ENABLE_EXTENSIONS
