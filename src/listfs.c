@@ -253,9 +253,15 @@ int main(int argc, char* argv[]) {
 		if(entry[len-1] == '\n')
 			entry[len-1] = '\0';
 
+		char* path = realpath(entry,NULL);
+		if(!path) {
+			perror(entry);
+			continue;
+		}
+		char* basepath = path;
 		char* token;
 		struct btree* base = &root;
-		while((token = strsep(&entry, "/"))) {
+		while((token = strsep(&basepath, "/"))) {
 			if(!*token)
 				continue;
 
@@ -271,12 +277,13 @@ int main(int argc, char* argv[]) {
 				base->links = tmp;
 				base->links[base->len-1].len = 0;
 				base->links[base->len-1].links = NULL;
-				base->links[base->len-1].name = token; // hold onto these since entry won't be freed until exit
+				base->links[base->len-1].name = token; // hold onto these since path won't be freed until exit
 			}
 			base = base->links + i;
 		}
 	}
 	fclose(f);
+	free(entry);
 
 	ret = fuse_main(args.argc,args.argv,&listfs_ops,&root);
 
