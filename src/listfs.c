@@ -246,11 +246,16 @@ int main(int argc, char* argv[]) {
 
 	struct btree root = {"/"};
 	struct listfs listfs = {&root, rootpath, strlen(rootpath)};
-	FILE* f = fopen(cfg.file, "r");
-	if(!f) {
-		perror(cfg.file);
-		ret = 1;
-		goto end;
+	FILE* f;
+	if(!strcmp(cfg.file,"-"))
+		f = stdin;
+	else {
+		f = fopen(cfg.file, "r");
+		if(!f) {
+			perror(cfg.file);
+			ret = 1;
+			goto end;
+		}
 	}
 	ssize_t len;
 	char* entry = NULL;
