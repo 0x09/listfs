@@ -208,7 +208,7 @@ int main(int argc, char* argv[]) {
 
 	char* fsname = malloc(strlen("fsname=") + strlen(device) + 1);
 	if(!fsname)
-		goto opt_err;
+		goto end;
 	strcpy(fsname, "fsname=");
 	strcat(fsname, device);
 
@@ -224,6 +224,7 @@ int main(int argc, char* argv[]) {
 	FILE* f = fopen(device, "r");
 	ssize_t len;
 	char* entry = NULL;
+	int ret;
 	while((len = getline(&entry, &(size_t){0}, f)) > 0) {
 		if(entry[len-1] == '\n')
 			entry[len-1] = '\0';
@@ -238,7 +239,12 @@ int main(int argc, char* argv[]) {
 			for(i = 0; i < base->len && strcmp(token, base->links[i].name); i++)
 				;
 			if(i == base->len) {
-				base->links = realloc(base->links, sizeof(struct btree) * ++(base->len));
+				struct btree* tmp = realloc(base->links, sizeof(struct btree) * ++base->len);
+				if(!tmp) {
+					ret = 1;
+					goto end;
+				}
+				base->links = tmp;
 				memset(base->links + base->len-1, 0, sizeof(struct btree));
 				base->links[base->len-1].name = token; // hold onto these since entry won't be freed until exit
 			}
@@ -248,9 +254,9 @@ int main(int argc, char* argv[]) {
 	}
 	fclose(f);
 
-	int ret = fuse_main(args.argc,args.argv,&listfs_ops,&root);
+	ret = fuse_main(args.argc,args.argv,&listfs_ops,&root);
 
-opt_err:
+end:
 	fuse_opt_free_args(&args);
 
 	return ret;
