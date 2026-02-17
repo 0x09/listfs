@@ -208,6 +208,11 @@ static struct fuse_opt listfs_opts[] = {
 	FUSE_OPT_END
 };
 
+void usage() {
+	fputs("Usage: listfs [options] <list.txt> <mountpoint>\n",stderr);
+	exit(1);
+}
+
 static int listfs_opt_proc(void* data, const char* arg, int key, struct fuse_args* args) {
 	const char** file = data;
 	if(key == FUSE_OPT_KEY_NONOPT && !*file) {
@@ -228,8 +233,17 @@ int main(int argc, char* argv[]) {
 
 	const char* file = NULL;
 
-	if(fuse_opt_parse(&args, &file, listfs_opts, listfs_opt_proc) == -1)
-		return 1;
+	int ret;
+	if(fuse_opt_parse(&args, &file, listfs_opts, listfs_opt_proc) == -1) {
+		ret = 1;
+		goto end;
+	}
+
+	if(!file) {
+		usage();
+		ret = 1;
+		goto end;
+	}
 
 	char* fsname = malloc(strlen("fsname=") + strlen(file) + 1);
 	if(!fsname)
@@ -259,7 +273,6 @@ int main(int argc, char* argv[]) {
 	}
 	ssize_t len;
 	char* entry = NULL;
-	int ret;
 	while((len = getline(&entry, &(size_t){0}, f)) > 0) {
 		if(entry[len-1] == '\n')
 			entry[len-1] = '\0';
