@@ -8,7 +8,7 @@ export CC
 export CFLAGS
 
 FUSE_FLAGS = -DFUSE_USE_VERSION=35 -D_FILE_OFFSET_BITS=64
-LDLIBS = -lfuse3
+LDLIBS = -lfuse3 -lpthread
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
 	FUSE_FLAGS += -I/usr/local/include

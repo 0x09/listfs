@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <dirent.h>
+#include <pthread.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/mount.h>
@@ -145,6 +147,81 @@ static int listfs_getattr(const char* path, struct stat* st, struct fuse_file_in
 }
 #endif
 
+// operations on a real directory as opposed to one constructed by the list
+struct dir {
+	DIR* dir;
+	pthread_rwlock_t lock;
+	pthread_mutex_t readdir_mutex;
+};
+
+static int close_dir(struct dir* dir) {
+	int ret;
+	if((ret = -pthread_rwlock_wrlock(&dir->lock)))
+		return ret;
+	if(closedir(dir->dir))
+		ret = -errno;
+	pthread_rwlock_unlock(&dir->lock);
+	pthread_rwlock_destroy(&dir->lock);
+	pthread_mutex_destroy(&dir->readdir_mutex);
+	return ret;
+}
+
+static int open_dir(struct dir* dir, const char* path) {
+	int ret;
+	if((ret = -pthread_rwlock_init(&dir->lock,NULL)))
+		goto end;
+
+	if((ret = -pthread_mutex_init(&dir->readdir_mutex,NULL))) {
+		pthread_rwlock_destroy(&dir->lock);
+		goto end;
+	}
+
+	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
+	if(!realpath) {
+		close_dir(dir);
+		return -ENOMEM;
+	}
+
+	if(!(dir->dir = opendir(realpath))) {
+		close_dir(dir);
+		return -errno;
+	}
+
+	free(realpath);
+
+end:
+	return ret;
+}
+
+static int read_dir(struct dir* dir, void* buf, fill_dir_type filler, off_t offset) {
+	int ret;
+	if((ret = -pthread_rwlock_tryrdlock(&dir->lock)))
+		return ret;
+	if((ret = -pthread_mutex_lock(&dir->readdir_mutex))) {
+		pthread_rwlock_unlock(&dir->lock);
+		return ret;
+	}
+
+	if(offset < 2)
+		rewinddir(dir->dir);
+	else
+		seekdir(dir->dir,offset-2);
+
+	struct dirent* entry;
+	while((entry = readdir(dir->dir)))
+		if(filler(buf, entry->d_name, NULL, telldir(dir->dir)+3, 0))
+			break;
+
+	pthread_mutex_unlock(&dir->readdir_mutex);
+	pthread_rwlock_unlock(&dir->lock);
+	return ret;
+}
+
+struct listfs_dir {
+	struct btree* base;
+	struct dir dir;
+};
+
 static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	int ret = 0;
 	char* p = strdup(path),* origp = p;
@@ -154,7 +231,7 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	char* token;
 	struct listfs* listfs = fuse_get_context()->private_data;
 	struct btree* base = listfs->btree;
-	while((token = strsep(&p, "/"))) {
+	while((token = strsep(&p, "/")) && base->len) {
 		if(!*token)
 			continue;
 
@@ -164,9 +241,35 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 		base = base->links + i;
 	}
 
-	info->fh = (uint64_t)base;
+	struct listfs_dir* dir = malloc(sizeof(*dir));
+	if(!dir) {
+		ret = -ENOMEM;
+		goto end;
+	}
 
+	if(base->len)
+		dir->base = base;
+	else {
+		dir->base = NULL;
+		if((ret = open_dir(&dir->dir,path)))
+			goto end;
+	}
+
+	info->fh = (uint64_t)dir;
+
+end:
 	free(origp);
+	return ret;
+}
+
+static int listfs_releasedir(const char* path, struct fuse_file_info* info) {
+	struct listfs_dir* dir = (struct listfs_dir*)info->fh;
+
+	int ret = 0;
+	if(!dir->base)
+		ret = close_dir(&dir->dir);
+
+	free(dir);
 	return ret;
 }
 
@@ -178,11 +281,16 @@ static int listfs_readdir(const char* path, void* buf, fill_dir_type filler, off
 		if(filler(buf, "..", NULL, 2, 0))
 			return 0;
 
-	struct btree* base = (struct btree*)info->fh;
-	for(size_t i = offset < 2 ? 0 : offset-2; i < base->len; i++) {
-		if(filler(buf, base->links[i].name, NULL, i+3, 0))
-			return 0;
-	}
+	struct listfs_dir* dir = (struct listfs_dir*)info->fh;
+	struct btree* base = dir->base;
+	if(base)
+		for(size_t i = offset < 2 ? 0 : offset-2; i < base->len; i++) {
+			if(filler(buf, base->links[i].name, NULL, i+3, 0))
+				return 0;
+		}
+	else
+		return read_dir(&dir->dir,buf,filler,offset);
+
 	return 0;
 }
 
@@ -263,6 +371,7 @@ static struct fuse_operations listfs_ops = {
 	.read        = listfs_read,
 	.readdir     = listfs_readdir,
 	.release     = listfs_release,
+	.releasedir  = listfs_releasedir,
 	.statfs      = listfs_statfs,
 	.getattr     = listfs_getattr,
 	.readlink    = listfs_readlink,
