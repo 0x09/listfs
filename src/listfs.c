@@ -245,7 +245,13 @@ int main(int argc, char* argv[]) {
 	fuse_opt_add_arg(&args, opts);
 
 	struct btree root = {"/"};
-	FILE* f = fopen(file, "r");
+	struct listfs listfs = {&root, rootpath, strlen(rootpath)};
+	FILE* f = fopen(cfg.file, "r");
+	if(!f) {
+		perror(cfg.file);
+		ret = 1;
+		goto end;
+	}
 	ssize_t len;
 	char* entry = NULL;
 	int ret;
