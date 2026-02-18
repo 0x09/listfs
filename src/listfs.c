@@ -366,17 +366,17 @@ static int listfs_getxattr(const char* path, const char* attr, char* value, size
 #endif
 
 static struct fuse_operations listfs_ops = {
-	.open        = listfs_open,
-	.opendir     = listfs_opendir,
-	.read        = listfs_read,
-	.readdir     = listfs_readdir,
-	.release     = listfs_release,
-	.releasedir  = listfs_releasedir,
-	.statfs      = listfs_statfs,
-	.getattr     = listfs_getattr,
-	.readlink    = listfs_readlink,
-	.listxattr   = listfs_listxattr,
-	.getxattr    = listfs_getxattr,
+	.open       = listfs_open,
+	.opendir    = listfs_opendir,
+	.read       = listfs_read,
+	.readdir    = listfs_readdir,
+	.release    = listfs_release,
+	.releasedir = listfs_releasedir,
+	.statfs     = listfs_statfs,
+	.getattr    = listfs_getattr,
+	.readlink   = listfs_readlink,
+	.listxattr  = listfs_listxattr,
+	.getxattr   = listfs_getxattr,
 };
 
 struct listfs_config {
