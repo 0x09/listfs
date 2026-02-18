@@ -449,8 +449,18 @@ int main(int argc, char* argv[]) {
 	}
 
 	char* rootpath = "";
-	if(cfg.root && !(rootpath = realpath(cfg.root,NULL)))
-		perror(cfg.root);
+	if(cfg.root) {
+		if(!(rootpath = realpath(cfg.root,NULL)))
+			perror(cfg.root);
+
+		struct stat st;
+		stat(rootpath,&st);
+		if(!S_ISDIR(st.st_mode)) {
+			fprintf(stderr,"root path %s is not a directory\n",cfg.root);
+			ret = 1;
+			goto end;
+		}
+	}
 
 	char* fsname = malloc(strlen("fsname=") + strlen(cfg.file) + 1);
 	if(!fsname)
