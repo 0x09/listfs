@@ -242,10 +242,8 @@ static int listfs_opendir(const char* path, struct fuse_file_info* info) {
 	char* token;
 	struct listfs* listfs = fuse_get_context()->private_data;
 	struct btree* base = listfs->btree;
-	while((token = strsep(&p, "/")) && base->len) {
-		if(!*token)
-			continue;
-
+	p++;
+	while((token = strsep(&p, "/")) && *token && base->len) {
 		size_t i;
 		for(i = 0; strcmp(token, base->links[i].name); i++)
 			;
@@ -493,7 +491,7 @@ int main(int argc, char* argv[]) {
 		}
 		char* basepath = path;
 		if(!strncmp(basepath,listfs.root,listfs.root_len))
-			basepath += listfs.root_len;
+			basepath += listfs.root_len + 1;
 		else {
 			fprintf(stderr,"Warning: %s is outside of root, skipping.\n",entry);
 			continue;
@@ -501,7 +499,7 @@ int main(int argc, char* argv[]) {
 
 		char* token;
 		struct btree* base = &root;
-		while((token = strsep(&basepath, "/"))) {
+		while((token = strsep(&basepath, "/")) && *token) {
 			if(!*token)
 				continue;
 
