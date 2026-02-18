@@ -84,6 +84,17 @@ static int listfs_read(const char* path, char* buf, size_t size, off_t offset, s
 	return ret;
 }
 
+static int listfs_read_buf(const char* path, struct fuse_bufvec** bufp, size_t size, off_t offset, struct fuse_file_info* info) {
+	if(!(*bufp = malloc(sizeof(**bufp))))
+		return -ENOMEM;
+
+	**bufp = FUSE_BUFVEC_INIT(size);
+	(*bufp)->buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+	(*bufp)->buf[0].fd = info->fh;
+	(*bufp)->buf[0].pos = offset;
+
+	return 0;
+}
 static int listfs_readlink(const char* path, char* buf, size_t size) {
 	char* realpath = listfs_realpath(fuse_get_context()->private_data, path);
 	if(!realpath)
@@ -369,6 +380,7 @@ static struct fuse_operations listfs_ops = {
 	.open       = listfs_open,
 	.opendir    = listfs_opendir,
 	.read       = listfs_read,
+	.read_buf   = listfs_read_buf,
 	.readdir    = listfs_readdir,
 	.release    = listfs_release,
 	.releasedir = listfs_releasedir,
